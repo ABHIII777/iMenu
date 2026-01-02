@@ -18,10 +18,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func setupGlobalHotkey() {
-        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+//        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+//            guard
+//                event.modifierFlags.contains([.command, .shift]),
+//                event.charactersIgnoringModifiers?.lowercased() == "o"
+//            else { return }
+//            
+//            DispatchQueue.main.async {
+//                self?.toggleOverlay()
+//            }
+//        }
+//        
+//
+//        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+//            guard
+//                event.modifierFlags.contains([.command, .shift]),
+//                event.charactersIgnoringModifiers?.lowercased() == "o"
+//            else {return event}
+//            
+//            DispatchQueue.main.async {
+//                self?.toggleOverlay()
+//            }
+//            return nil
+//        }
+        
+        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             guard
-                event.modifierFlags.contains([.command, .shift]),
-                event.charactersIgnoringModifiers?.lowercased() == "o"
+                flags.contains(.command) && flags.contains(.shift)
             else { return }
             
             DispatchQueue.main.async {
@@ -29,11 +53,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         
-
-        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             guard
-                event.modifierFlags.contains([.command, .shift]),
-                event.charactersIgnoringModifiers?.lowercased() == "o"
+                flags.contains(.command) && flags.contains(.shift)
             else {return event}
             
             DispatchQueue.main.async {
