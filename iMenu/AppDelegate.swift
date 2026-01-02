@@ -6,6 +6,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     final class OverlayWindow: NSWindow {
         
+        let index: Int
+        
+        init(index: Int, contentRect: NSRect, styleMask: NSWindow.StyleMask, backing: NSWindow.BackingStoreType, defer flag: Bool) {
+            self.index = index
+            super.init(contentRect: contentRect, styleMask: styleMask, backing: backing, defer: flag)
+        }
+        
         override var canBecomeKey: Bool { true }
         override var canBecomeMain: Bool { true }
     }
@@ -51,6 +58,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         createOverlay()
         overlayWindow.forEach { $0.makeKeyAndOrderFront(nil) }
         NSApp.activate(ignoringOtherApps: true)
+        
+        DispatchQueue.main.async {
+            self.overlayWindow.first?.makeKey()
+            
+            var currentIndex: Int = 0
+            
+            if let window = self.overlayWindow.first as? OverlayWindow {
+                currentIndex = window.index + 1
+                
+            }
+            
+            print(currentIndex)
+        }
+        
     }
 
 
@@ -75,7 +96,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         for (index, app) in apps.enumerated() {
             
-//            let spacing: CGFloat = windowSize.height + 12
             let spacing: CGFloat = 80
             let totalHeight = CGFloat(apps.count) * spacing
 
@@ -85,6 +105,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             
             let window = OverlayWindow(
+                index: index,
                 contentRect: NSRect(
                     origin: CGPoint(
                         x: x - windowSize.width / 2,
