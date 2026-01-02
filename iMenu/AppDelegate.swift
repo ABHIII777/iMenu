@@ -75,7 +75,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         for (index, app) in apps.enumerated() {
             
-            let spacing: CGFloat = windowSize.height + 12
+//            let spacing: CGFloat = windowSize.height + 12
+            let spacing: CGFloat = 80
             let totalHeight = CGFloat(apps.count) * spacing
 
             let x = screenFrame.midX
