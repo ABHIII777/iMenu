@@ -6,7 +6,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     final class OverlayWindow: NSWindow {
         
-        let index: Int
+        var index: Int
         
         init(index: Int, contentRect: NSRect, styleMask: NSWindow.StyleMask, backing: NSWindow.BackingStoreType, defer flag: Bool) {
             self.index = index
@@ -19,6 +19,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     var overlayWindow: [NSWindow] = []
     var eventMonitor: Any?
+    var selectedIndex: Int = 0
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupGlobalHotkey()
@@ -52,28 +53,53 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func toggleOverlay() {
         if overlayWindow.contains(where: { $0.isVisible }) {
             overlayWindow.forEach { $0.orderOut(nil) }
+            stopNavigation()
             return
         }
 
         createOverlay()
         overlayWindow.forEach { $0.makeKeyAndOrderFront(nil) }
         NSApp.activate(ignoringOtherApps: true)
-        
-        DispatchQueue.main.async {
-            self.overlayWindow.first?.makeKey()
-            
-            var currentIndex: Int = 0
-            
-            if let window = self.overlayWindow.first as? OverlayWindow {
-                currentIndex = window.index + 1
-                
-            }
-            
-            print(currentIndex)
-        }
-        
+        navigateWindows()
+    }
+    
+    func moveSelection(_ delta: Int) {
+        selectedIndex = (selectedIndex + delta + overlayWindow.count) % overlayWindow.count
+
+        overlayWindow[selectedIndex].makeKey()
     }
 
+    func navigateWindows() {
+        guard eventMonitor == nil else {return}
+        
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self else {return event}
+            
+            switch event.keyCode {
+            case 126:
+                print("Up arrow key pressed")
+                self.moveSelection(+1)
+                return nil
+                
+            case 125:
+                print("Down arrow key pressed")
+                self.moveSelection(-1)
+                return nil
+                
+            default:
+                print("YOUR SMART-ASS HAVEN'T EVEN WRITTEN THAT CODE.")
+                return event
+            }
+            
+        }
+    }
+    
+    func stopNavigation() {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
+    }
 
     func createOverlay() {
         assert(Thread.isMainThread, "createOverlay must be called on main thread")
@@ -115,7 +141,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 ),
                 styleMask: [.borderless],
                 backing: .buffered,
-                defer: false
+                defer: false,
             )
             
             window.level = .floating
