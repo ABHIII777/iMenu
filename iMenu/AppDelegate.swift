@@ -67,6 +67,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         selectedIndex = (selectedIndex + delta + overlayWindow.count) % overlayWindow.count
 
         overlayWindow[selectedIndex].makeKey()
+        
+        updateWindow()
     }
 
     func navigateWindows() {
@@ -76,13 +78,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else {return event}
             
             switch event.keyCode {
-            case 126:
-                print("Up arrow key pressed")
+            case 125:
+                print("Down arrow key pressed")
                 self.moveSelection(+1)
                 return nil
                 
-            case 125:
-                print("Down arrow key pressed")
+            case 126:
+                print("Up arrow key pressed")
                 self.moveSelection(-1)
                 return nil
                 
@@ -160,6 +162,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    func updateWindow() {
+        
+        let normalSize = NSSize(width: 320, height: 100)
+        let updatedSize = NSSize(width: 350, height: 130)
+        
+        let spacing: CGFloat = 80
+        guard let screen = NSScreen.main else { return }
+        
+        let totalHeight =
+            overlayWindow.reduce(0) { sum, _ in
+                sum + normalSize.height + spacing
+            } - spacing
+
+        let startY = screen.visibleFrame.midY + totalHeight / 2
+        
+        for (index, window) in overlayWindow.enumerated(){
+            let isSelected = (index == selectedIndex)
+            let size = isSelected ? normalSize : updatedSize
+            
+            let y = startY - CGFloat(index) * (normalSize.height + spacing) - size.height / 2
+
+            let x = screen.visibleFrame.midX - size.width / 2
+
+            window.setFrame(
+                NSRect(origin:
+                    CGPoint(x: x, y: y),size: size),
+                    display: true,
+                    animate: true
+            )
+        }
     }
     
     struct AppIconView: View {
