@@ -65,6 +65,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func moveSelection(_ delta: Int) {
         selectedIndex = (selectedIndex + delta + overlayWindow.count) % overlayWindow.count
+        
+        let apps = NSWorkspace.shared.runningApplications.filter { app in
+            app.activationPolicy == .regular && !app.isTerminated && !app.isHidden
+        }
+        
+        for (index, window) in overlayWindow.enumerated() {
+            let host = window.contentView as! NSHostingView<RunningApps>
+            host.rootView = RunningApps(
+                app: apps[index],
+                isSelected: index == selectedIndex
+            )
+        }
 
         overlayWindow[selectedIndex].makeKey()
         
@@ -72,24 +84,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func navigateWindows() {
-        guard eventMonitor == nil else {return}
         
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else {return event}
             
             switch event.keyCode {
             case 125:
-                print("Down arrow key pressed")
                 self.moveSelection(+1)
                 return nil
                 
             case 126:
-                print("Up arrow key pressed")
                 self.moveSelection(-1)
                 return nil
                 
             default:
-                print("YOUR SMART-ASS HAVEN'T EVEN WRITTEN THAT CODE.")
                 return event
             }
             
@@ -155,7 +163,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.isReleasedWhenClosed = false
             
             window.contentView = NSHostingView(
-                rootView: RunningApps(app: app)
+                rootView: RunningApps(app: app, isSelected: (index == selectedIndex))
             )
             
             overlayWindow.append(window)
@@ -166,34 +174,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func updateWindow() {
         
-        let normalSize = NSSize(width: 320, height: 100)
-        let updatedSize = NSSize(width: 350, height: 130)
-        
-        let spacing: CGFloat = 80
-        guard let screen = NSScreen.main else { return }
-        
-        let totalHeight =
-            overlayWindow.reduce(0) { sum, _ in
-                sum + normalSize.height + spacing
-            } - spacing
+//        let normalSize = NSSize(width: 320, height: 100)
+//        let updatedSize = NSSize(width: 350, height: 130)
+//        
+//        let spacing: CGFloat = 0
+//        let rowHeight = normalSize.height
+//        guard let screen = NSScreen.main else { return }
+//        
+//        let totalHeight = CGFloat(overlayWindow.count) * rowHeight + CGFloat(overlayWindow.count - 1) * spacing
+//
+//        let startY = screen.visibleFrame.midY + totalHeight / 2
+//        
+//        for (index, window) in overlayWindow.enumerated(){
+//            let isSelected = (index == selectedIndex)
+//            let size = isSelected ? updatedSize : normalSize
+//            
+//            let y = startY - CGFloat(index) * (rowHeight + spacing) - rowHeight / 2 - size.height / 2
+//
+//            let x = screen.visibleFrame.midX - size.width / 2
+//
+//            window.setFrame(
+//                NSRect(origin:
+//                    CGPoint(x: x, y: y),size: size),
+//                    display: true,
+//                    animate: true
+//            )
+//        }
 
-        let startY = screen.visibleFrame.midY + totalHeight / 2
-        
-        for (index, window) in overlayWindow.enumerated(){
-            let isSelected = (index == selectedIndex)
-            let size = isSelected ? normalSize : updatedSize
-            
-            let y = startY - CGFloat(index) * (normalSize.height + spacing) - size.height / 2
-
-            let x = screen.visibleFrame.midX - size.width / 2
-
-            window.setFrame(
-                NSRect(origin:
-                    CGPoint(x: x, y: y),size: size),
-                    display: true,
-                    animate: true
-            )
-        }
     }
     
     struct AppIconView: View {
@@ -210,6 +217,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     struct RunningApps: View {
         var app: NSRunningApplication
+        var isSelected: Bool
 
         var body: some View {
             HStack(spacing: 12) {
@@ -227,7 +235,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(.ultraThinMaterial)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(
+                                isSelected ? Color.accentColor : .clear,
+                                lineWidth: 3
+                            )
+                    )
+            )
+            .scaleEffect(isSelected ? 1.05 : 1.0)
+            .shadow(radius: isSelected ? 20 : 8)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
             .cornerRadius(14)
         }
     }
