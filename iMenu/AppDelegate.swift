@@ -79,8 +79,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         overlayWindow[selectedIndex].makeKey()
-        
-        updateWindow()
     }
 
     func navigateWindows() {
@@ -170,37 +168,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         NSApp.activate(ignoringOtherApps: true)
-    }
-    
-    func updateWindow() {
-        
-//        let normalSize = NSSize(width: 320, height: 100)
-//        let updatedSize = NSSize(width: 350, height: 130)
-//        
-//        let spacing: CGFloat = 0
-//        let rowHeight = normalSize.height
-//        guard let screen = NSScreen.main else { return }
-//        
-//        let totalHeight = CGFloat(overlayWindow.count) * rowHeight + CGFloat(overlayWindow.count - 1) * spacing
-//
-//        let startY = screen.visibleFrame.midY + totalHeight / 2
-//        
-//        for (index, window) in overlayWindow.enumerated(){
-//            let isSelected = (index == selectedIndex)
-//            let size = isSelected ? updatedSize : normalSize
-//            
-//            let y = startY - CGFloat(index) * (rowHeight + spacing) - rowHeight / 2 - size.height / 2
-//
-//            let x = screen.visibleFrame.midX - size.width / 2
-//
-//            window.setFrame(
-//                NSRect(origin:
-//                    CGPoint(x: x, y: y),size: size),
-//                    display: true,
-//                    animate: true
-//            )
-//        }
-
     }
     
     struct AppIconView: View {
