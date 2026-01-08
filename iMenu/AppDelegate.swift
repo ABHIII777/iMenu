@@ -95,6 +95,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.moveSelection(-1)
                 return nil
                 
+            case 36, 76:
+                self.activateWindow()
+                self.toggleOverlay()
+                return nil
+                
             default:
                 return event
             }
@@ -108,7 +113,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             eventMonitor = nil
         }
     }
-
+    
+    func activateWindow() {
+        
+        let apps = NSWorkspace.shared.runningApplications.filter { app in
+            app.activationPolicy == .regular && !app.isTerminated && !app.isHidden
+        }
+        
+        let app = apps[selectedIndex]
+        app.activate(options: [.activateAllWindows])
+    }
+    
     func createOverlay() {
         assert(Thread.isMainThread, "createOverlay must be called on main thread")
         
