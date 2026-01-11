@@ -1,5 +1,8 @@
 import SwiftUI
 import AppKit
+import CoreGraphics
+import Cocoa
+import ScreenCaptureKit
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -103,7 +106,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             default:
                 return event
             }
-            
         }
     }
     
@@ -202,39 +204,62 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var isSelected: Bool
 
         var body: some View {
-            HStack(spacing: 12) {
-                if let icon = app.icon {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .frame(width: 36, height: 36)
-                        .cornerRadius(8)
+            HStack(alignment: .center, spacing: 0) {
+                HStack(spacing: 12) {
+                    if let icon = app.icon {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .frame(width: 36, height: 36)
+                            .cornerRadius(8)
+                    }
+
+                    Text(app.localizedName ?? "")
+                        .font(.system(size: 14, weight: .medium))
+
+                    Spacer()
                 }
-
-                Text(app.localizedName ?? "")
-                    .font(.system(size: 14, weight: .medium))
-
-                Spacer()
+                .frame(width: 320)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(
+                                    isSelected ? Color.accentColor : .clear,
+                                    lineWidth: 3
+                                )
+                        )
+                )
+                .scaleEffect(isSelected ? 1.05 : 1.0)
+                .shadow(radius: isSelected ? 20 : 8)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
+                .cornerRadius(14)
+                
+                HStack(spacing: 12) {
+                    if isSelected {
+                        Text(app.localizedName ?? "")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(
+                                    Color.accentColor,
+                                    lineWidth: 3
+                                )
+                        )
+                )
+                .cornerRadius(14)
+                .padding(.leading, 24)
+                .frame(width: 320, height: 100)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(
-                                isSelected ? Color.accentColor : .clear,
-                                lineWidth: 3
-                            )
-                    )
-            )
-            .scaleEffect(isSelected ? 1.05 : 1.0)
-            .shadow(radius: isSelected ? 20 : 8)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
-            .cornerRadius(14)
         }
     }
-
     
     deinit {
         if let monitor = eventMonitor {
