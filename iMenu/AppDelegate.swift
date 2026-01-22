@@ -464,6 +464,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(maxWidth: 600, maxHeight: 400)
+                        .padding(10)
                         .background(
                             RoundedRectangle(cornerRadius: 16)
                                 .fill(.ultraThinMaterial)
@@ -481,6 +482,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                                 .stroke(Color.accentColor.opacity(0.3), lineWidth: 2)
                         )
                         .frame(width: 600, height: 400)
+                        .padding(10)
                         .overlay(
                             ProgressView()
                                 .scaleEffect(1.5)
