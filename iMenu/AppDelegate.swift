@@ -39,14 +39,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        // Clean up all streams
         for stream in windowStreams.values {
             stream.stopCapture()
         }
         windowStreams.removeAll()
         streamOutputs.removeAll()
         
-        // Clean up event monitors
         stopNavigation()
         if let monitor = globalEventMonitor {
             NSEvent.removeMonitor(monitor)
@@ -81,13 +79,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func ensureAuthorization(completion: @escaping (Bool) -> Void) {
-        // Ensure completion is called on main thread for UI safety
         if CGPreflightScreenCaptureAccess() {
             DispatchQueue.main.async {
                 completion(true)
             }
         } else {
-            // CGRequestScreenCaptureAccess() may show a dialog, so run on main thread
             DispatchQueue.main.async {
                 let granted = CGRequestScreenCaptureAccess()
                 completion(granted)
@@ -108,7 +104,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             self.createOverlay()
             self.overlayWindow.forEach { $0.makeKeyAndOrderFront(nil) }
-            // Preview window will be shown when capture completes
             NSApp.activate(ignoringOtherApps: true)
 
             self.navigateWindows()
@@ -120,7 +115,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
                     self.overlayWindow.forEach { $0.makeKeyAndOrderFront(nil) }
-                    // Preview window will be shown when capture completes
                 }
             }
         }
@@ -140,11 +134,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         previewWindow = nil
         selectedIndex = 0
 
-        // Window size for app list items (preview is separate)
         let windowSize = NSSize(width: 320, height: 100)
         let screenFrame = screen.visibleFrame
 
-        // Spacing between app items
         let spacing: CGFloat = 80
         let totalHeight = CGFloat(cachedApps.count) * spacing
         let startY = screenFrame.midY + (totalHeight / 2) - (spacing / 2)
@@ -180,27 +172,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             overlayWindow.append(window)
         }
         
-        // Create preview window (initially hidden)
         createPreviewWindow()
     }
     
     func createPreviewWindow() {
-        // Close existing preview window
         previewWindow?.close()
         previewWindow = nil
         
         guard let screen = NSScreen.main else { return }
         let screenFrame = screen.visibleFrame
         
-        // Preview window size
         let previewSize = NSSize(width: 400, height: 300)
         
-        // Position to the right of the center (where app list is)
         let previewWindow = OverlayWindow(
-            index: -1, // Special index for preview window
+            index: -1,
             contentRect: NSRect(
                 origin: CGPoint(
-                    x: screenFrame.midX + 180, // To the right of app list (320/2 + spacing)
+                    x: screenFrame.midX + 180,
                     y: screenFrame.midY - previewSize.height / 2
                 ),
                 size: previewSize
@@ -233,10 +221,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let selectedFrame = selectedWindow.frame
         let previewSize = previewWindow.frame.size
         
-        // Position preview window to the right of selected item, vertically aligned
         let newOrigin = CGPoint(
-            x: selectedFrame.maxX + 20, // 20pt spacing from app list
-            y: selectedFrame.midY - previewSize.height / 2 // Vertically centered with selected item
+            x: selectedFrame.maxX + 20,
+            y: selectedFrame.midY - previewSize.height / 2
         )
         
         previewWindow.setFrameOrigin(newOrigin)
@@ -246,7 +233,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         for (index, window) in overlayWindow.enumerated() {
             guard let host = window.contentView as? NSHostingView<RunningApps> else { continue }
             let old = host.rootView
-            // App list items don't show preview anymore (it's in separate window)
             host.rootView = RunningApps(
                 app: old.app,
                 isSelected: index == selectedIndex,
@@ -254,7 +240,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             )
         }
         
-        // Update preview window position and content
         updatePreviewPosition()
     }
 
@@ -265,13 +250,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard selectedIndex < overlayWindow.count else { return }
         overlayWindow[selectedIndex].makeKey()
         
-        // Update preview position immediately
         updatePreviewPosition()
         
-        // Clear and recapture preview for newly selected item
         if let previewWindow = previewWindow,
            let host = previewWindow.contentView as? NSHostingView<PreviewView> {
-            host.rootView = PreviewView(image: nil) // Show loading state
+            host.rootView = PreviewView(image: nil)
         }
         captureWindow()
     }
@@ -398,18 +381,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let apps = self.cachedApps
             let selectedIdx = self.selectedIndex
 
-            // onScreenWindowsOnly: false to capture windows from all desktops/spaces
             SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: false) { content, _ in
                 let scWindows = content?.windows ?? []
 
                 Task { @MainActor in
-                    // Only capture preview for the currently selected app
                     guard selectedIdx < apps.count && selectedIdx < self.overlayWindow.count else { return }
                     
                     let app = apps[selectedIdx]
-
-                    // Filter for windows from this app, including those on other desktops/spaces
-                    // Exclude very small windows (likely UI elements, not main windows)
+                    
                     let candidates = scWindows.filter {
                         $0.owningApplication?.bundleIdentifier == app.bundleIdentifier &&
                         $0.frame.width > 50 &&
@@ -424,13 +403,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
                         self.snapshot(of: best) { image in
                             Task { @MainActor in
-                                // Update preview window with the captured image
                                 if let previewWindow = self.previewWindow,
                                    let host = previewWindow.contentView as? NSHostingView<PreviewView> {
                                     host.rootView = PreviewView(image: image)
                                 }
                                 
-                                // Show preview window if it was hidden
                                 if let previewWindow = self.previewWindow, !previewWindow.isVisible {
                                     previewWindow.makeKeyAndOrderFront(nil)
                                 }
@@ -444,7 +421,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     struct RunningApps: View {
         var app: NSRunningApplication
         var isSelected: Bool
-        var preview: NSImage? // Not used anymore, kept for compatibility
+        var preview: NSImage?
 
         var body: some View {
             HStack(spacing: 12) {
@@ -486,7 +463,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     Image(nsImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: 400, maxHeight: 300)
+                        .frame(maxWidth: 600, maxHeight: 400)
                         .background(
                             RoundedRectangle(cornerRadius: 16)
                                 .fill(.ultraThinMaterial)
@@ -497,14 +474,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         )
                         .transition(.opacity.combined(with: .scale))
                 } else {
-                    // Placeholder while loading
                     RoundedRectangle(cornerRadius: 16)
                         .fill(.ultraThinMaterial)
                         .overlay(
                             RoundedRectangle(cornerRadius: 16)
                                 .stroke(Color.accentColor.opacity(0.3), lineWidth: 2)
                         )
-                        .frame(width: 400, height: 300)
+                        .frame(width: 600, height: 400)
                         .overlay(
                             ProgressView()
                                 .scaleEffect(1.5)
