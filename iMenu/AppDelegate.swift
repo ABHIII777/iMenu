@@ -442,10 +442,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(.ultraThinMaterial)
+                    .fill(.gray.opacity(0.15))
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)
-                            .stroke(isSelected ? Color.accentColor : .clear, lineWidth: 3)
+                            .stroke(isSelected ? .white : .clear, lineWidth: 3)
                     )
             )
             .scaleEffect(isSelected ? 1.05 : 1.0)
@@ -470,7 +470,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                                 .fill(.ultraThinMaterial)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 16)
-                                        .stroke(Color.accentColor, lineWidth: 3)
+                                        .stroke(.white, lineWidth: 3)
                                 )
                         )
                         .transition(.opacity.combined(with: .scale))
@@ -479,7 +479,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         .fill(.ultraThinMaterial)
                         .overlay(
                             RoundedRectangle(cornerRadius: 16)
-                                .stroke(Color.accentColor.opacity(0.3), lineWidth: 2)
+                                .stroke(Color.accentColor.opacity(0.15), lineWidth: 2)
                         )
                         .frame(width: 600, height: 400)
                         .padding(10)
