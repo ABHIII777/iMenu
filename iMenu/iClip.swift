@@ -170,40 +170,4 @@ class iClip: NSObject, NSApplicationDelegate {
             )
         }
     }
-    
-    struct SearchWindow: View {
-        
-        @Binding var query: String
-        @FocusState private var isFocused: Bool
-        
-        var body: some View {
-            
-        }
-    }
-    
-    struct SearchResult: View {
-        
-        let items: [String]
-        
-        var body: some View {
-            ScrollView {
-                VStack(spacing: 8) {
-                    ForEach(items, id: \.self) { item in
-                        Text(item)
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(10)
-                            .background(
-                                RoundedRectangle(cornerRadius: 0)
-                                    .fill(.ultraThinMaterial)
-                                    .border(Color.accentColor, width: 0.5)
-                                    .cornerRadius(8)
-                            )
-                            .cornerRadius(8)
-                    }
-                }
-                .padding()
-            }
-        }
-    }
 }
