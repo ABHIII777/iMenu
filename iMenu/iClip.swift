@@ -111,6 +111,10 @@ class iClip: NSObject, NSApplicationDelegate {
         startNavigation()
     }
     
+    func startNavigation() {}
+    
+    func stopNavigation() {}
+    
     struct CombinedSearchView: View {
         @State private var query = ""
         @FocusState private var isFocused: Bool
