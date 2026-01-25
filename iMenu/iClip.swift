@@ -98,6 +98,19 @@ class iClip: NSObject, NSApplicationDelegate {
         overlayWindow = window
     }
     
+    func toggleOverlay() {
+        if self.overlayWindow?.isVisible == true {
+            overlayWindow?.orderOut(nil)
+            stopNavigation()
+            return
+        }
+        
+        createOverlay()
+        NSApp.activate(ignoringOtherApps: true)
+        
+        startNavigation()
+    }
+    
     struct CombinedSearchView: View {
         @State private var query = ""
         @FocusState private var isFocused: Bool
