@@ -69,7 +69,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func handleFlagsChanged(_ event: NSEvent) {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let isCmdShiftPressed = flags.contains(.command) && flags.contains(.shift)
+        let isCmdShiftPressed = flags.contains(.command) && flags.contains(.option)
 
         if isCmdShiftPressed && !wasCmdShiftPressed {
             toggleOverlay()
@@ -246,7 +246,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func moveSelection(_ delta: Int) {
         guard !overlayWindow.isEmpty else { return }
         selectedIndex = (selectedIndex + delta + overlayWindow.count) % overlayWindow.count
+        
         updateSelectionUI()
+        
         guard selectedIndex < overlayWindow.count else { return }
         overlayWindow[selectedIndex].makeKey()
         
@@ -278,6 +280,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.stopNavigation()
                 self.activateWindow()
                 return nil
+                
+//            case 1:
+                
             default:
                 return event
             }
