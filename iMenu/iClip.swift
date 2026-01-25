@@ -13,7 +13,7 @@ class iClip: NSObject, NSApplicationDelegate {
     
     final class ClipboardStore: ObservableObject {
         @Published var history: [String] = []
-        @Published var selectedINdex: Int = 0
+        @Published var selectedIndex: Int = 0
         
         private var lastChange = NSPasteboard.general.changeCount
         private var timer: Timer?
@@ -111,9 +111,41 @@ class iClip: NSObject, NSApplicationDelegate {
         startNavigation()
     }
     
-    func startNavigation() {}
+    func startNavigation() {
+        stopNavigation()
+        
+        navigationMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown){ [weak self] event in
+            guard let self else { return event }
+            
+            switch event.keyCode {
+            case 125:
+                self.moveSelection(+1)
+                return nil
+                
+            case 126:
+                self.moveSelection(-1)
+                return nil
+                
+            default:
+                return event
+            }
+        }
+    }
     
-    func stopNavigation() {}
+    func moveSelection(_ delta: Int) {
+        let count = clipboardStore.history.count
+        
+        guard count > 0 else { return }
+        
+        clipboardStore.selectedIndex = (clipboardStore.selectedIndex + delta + count) % count
+    }
+    
+    func stopNavigation() {
+        if let monitor = navigationMonitor {
+            NSEvent.removeMonitor(monitor)
+            navigationMonitor = nil
+        }
+    }
     
     struct CombinedSearchView: View {
         @State private var query = ""
@@ -171,7 +203,7 @@ class iClip: NSObject, NSApplicationDelegate {
                         .padding(.vertical, 8)
                         .contentShape(Rectangle())
                         .background(
-                            index == store.selectedINdex ? Color.accentColor.opacity(0.2) : Color.clear
+                            index == store.selectedIndex ? Color.accentColor.opacity(0.2) : Color.clear
                         )
                         
                         Divider().opacity(0.15)
