@@ -103,8 +103,71 @@ class iClip: NSObject, NSApplicationDelegate {
         @FocusState private var isFocused: Bool
         @ObservedObject var store: ClipboardStore
         
+        var filterData: [String] {
+            query.isEmpty ? store.history : store.history.filter{ $0.localizedCaseInsensitiveContains(query)}
+        }
+        
         var body: some View {
-            
+            VStack(spacing: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    
+                    TextField("Search in clipboard history...", text: $query)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 15, weight: .medium))
+                        .focused($isFocused)
+                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.white.opacity(0.06))
+                )
+                .onAppear {
+                    DispatchQueue.main.async {
+                        isFocused = true
+                    }
+                }
+                
+                VStack(spacing: 0) {
+                    ForEach(Array(filterData.enumerated()), id: \.offset) { index, item in
+                        HStack{
+                            Text(item)
+                                .font(.system(size: 13))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                                .textSelection(.enabled)
+                            
+                            Spacer()
+                            
+                            Button {
+                                let pb = NSPasteboard.general
+                                pb.clearContents()
+                                pb.setString(item, forType: .string)
+                            } label: {
+                                Image(systemName: "doc.on.doc")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                        .background(
+                            index == store.selectedINdex ? Color.accentColor.opacity(0.2) : Color.clear
+                        )
+                        
+                        Divider().opacity(0.15)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+            .padding(14)
+            .frame(width: 360)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(.ultraThinMaterial)
+            )
         }
     }
     
