@@ -165,10 +165,16 @@ class iClip: NSObject, NSApplicationDelegate {
         }
     }
     
+    func deleteHistory(_ item : String) {
+        clipboardStore.history.removeAll{ $0 == item }
+    }
+    
     struct CombinedSearchView: View {
         @State private var query = ""
         @FocusState private var isFocused: Bool
         @ObservedObject var store: ClipboardStore
+        
+        var selectedItem: String?
         
         var filterData: [String] {
             query.isEmpty ? store.history : store.history.filter{ $0.localizedCaseInsensitiveContains(query)}
@@ -197,7 +203,7 @@ class iClip: NSObject, NSApplicationDelegate {
                 }
                 
                 VStack(spacing: 0) {
-                    ForEach(Array(filterData.enumerated()), id: \.offset) { index, item in
+                    ForEach(filterData, id: \.self) { item in
                         HStack{
                             Text(item)
                                 .font(.system(size: 13))
@@ -216,12 +222,22 @@ class iClip: NSObject, NSApplicationDelegate {
                                     .foregroundStyle(.secondary)
                             }
                             .buttonStyle(.plain)
+                            
+                            Button {
+                                store.deleteHistory(item)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .contentShape(Rectangle())
+                        .onTapGesture {
+                            selectedItem = item
+                        }
                         .background(
-                            index == store.selectedIndex ? Color.accentColor.opacity(0.2) : Color.clear
+                            selectedItem == item ? Color.accentColor.opacity(0.2) : Color.clear
                         )
                         
                         Divider().opacity(0.15)
