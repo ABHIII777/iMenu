@@ -50,6 +50,10 @@ class iClip: NSObject, NSApplicationDelegate {
                 }
             }
         }
+        
+        func deleteHistory(_ item : String) {
+            history.removeAll{ $0 == item }
+        }
     }
     
     var overlayWindow: NSWindow?
@@ -165,16 +169,12 @@ class iClip: NSObject, NSApplicationDelegate {
         }
     }
     
-    func deleteHistory(_ item : String) {
-        clipboardStore.history.removeAll{ $0 == item }
-    }
-    
     struct CombinedSearchView: View {
         @State private var query = ""
         @FocusState private var isFocused: Bool
         @ObservedObject var store: ClipboardStore
         
-        var selectedItem: String?
+        @State private var selectedItem: String?
         
         var filterData: [String] {
             query.isEmpty ? store.history : store.history.filter{ $0.localizedCaseInsensitiveContains(query)}
@@ -204,43 +204,21 @@ class iClip: NSObject, NSApplicationDelegate {
                 
                 VStack(spacing: 0) {
                     ForEach(filterData, id: \.self) { item in
-                        HStack{
-                            Text(item)
-                                .font(.system(size: 13))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                                .textSelection(.enabled)
-                            
-                            Spacer()
-                            
-                            Button {
+                        ClipboardRow (
+                            item: item,
+                            isSelected: selectedItem == item,
+                            onCopy: {
                                 let pb = NSPasteboard.general
                                 pb.clearContents()
                                 pb.setString(item, forType: .string)
-                            } label: {
-                                Image(systemName: "doc.on.doc")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            
-                            Button {
+                            },
+                            onDelete: {
                                 store.deleteHistory(item)
-                            } label: {
-                                Image(systemName: "trash")
-                                    .foregroundStyle(.secondary)
+                            },
+                            onSelect: {
+                                selectedItem = item
                             }
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            selectedItem = item
-                        }
-                        .background(
-                            selectedItem == item ? Color.accentColor.opacity(0.2) : Color.clear
                         )
-                        
-                        Divider().opacity(0.15)
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -251,6 +229,46 @@ class iClip: NSObject, NSApplicationDelegate {
                 RoundedRectangle(cornerRadius: 14)
                     .fill(.ultraThinMaterial)
             )
+        }
+        
+        struct ClipboardRow: View {
+            
+            let item: String
+            let isSelected: Bool
+            let onCopy: () -> Void
+            let onDelete: () -> Void
+            let onSelect: () -> Void
+            
+            var body: some View {
+                HStack{
+                    Text(item)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .textSelection(.enabled)
+                    
+                    Spacer()
+                    
+                    Button(action: onCopy){
+                        Image(systemName: "doc.on.doc")
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onSelect)
+                .background(
+                    isSelected ? Color.accentColor.opacity(0.2) : Color.clear
+                )
+                
+                Divider().opacity(0.15)
+            }
         }
     }
 }
