@@ -21,6 +21,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var previewWindow: NSWindow?
     var cachedApps: [NSRunningApplication] = []
     var selectedIndex: Int = 0
+    var lastActiveAppID: String?
 
     var globalEventMonitor: Any?
     var localEventMonitor: Any?
@@ -124,11 +125,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 
     func createOverlay() {
-        cachedApps = NSWorkspace.shared.runningApplications.filter {
-            $0.activationPolicy == .regular && !$0.isTerminated && !$0.isHidden
+        let runningApps = NSWorkspace.shared.runningApplications.filter {
+            $0.activationPolicy == .regular &&
+            !$0.isTerminated &&
+            !$0.isHidden
         }
 
-        guard !cachedApps.isEmpty, let screen = NSScreen.main else { return }
+        guard !runningApps.isEmpty, let screen = NSScreen.main else { return }
+
+        if cachedApps.isEmpty {
+            cachedApps = runningApps
+        } else {
+            cachedApps = cachedApps.filter { oldApp in
+                runningApps.contains { $0.bundleIdentifier == oldApp.bundleIdentifier }
+            }
+
+            let newApps = runningApps.filter { app in
+                !cachedApps.contains { $0.bundleIdentifier == app.bundleIdentifier }
+            }
+
+            cachedApps.append(contentsOf: newApps)
+        }
 
         overlayWindow.forEach { $0.close() }
         overlayWindow.removeAll()
@@ -299,7 +316,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func activateWindow() {
         guard selectedIndex >= 0 && selectedIndex < cachedApps.count else { return }
-        cachedApps[selectedIndex].activate(options: [.activateAllWindows])
+        
+        let app = cachedApps[selectedIndex]
+        lastActiveAppID = app.bundleIdentifier
+        
+        app.activate(options: [.activateAllWindows])
+        
+        if let appID = lastActiveAppID,
+           let idx = cachedApps.firstIndex(where: {$0.bundleIdentifier == appID}) {
+            let app = cachedApps.remove(at: idx)
+            cachedApps.insert(app, at: 0)
+            
+            selectedIndex = 0
+            lastActiveAppID = appID
+        }
     }
 
     func snapshot(of window: SCWindow, completion: @escaping (NSImage?) -> Void) {
