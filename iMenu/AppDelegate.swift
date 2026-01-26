@@ -27,6 +27,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var navigationMonitor: Any?
 
     var wasCmdShiftPressed = false
+    var wasControlOptionPressed = false
 
     var windowStreams: [SCWindow: SCStream] = [:]
     var streamOutputs: [SCWindow: AnyObject] = [:]
@@ -70,12 +71,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func handleFlagsChanged(_ event: NSEvent) {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let isCmdShiftPressed = flags.contains(.command) && flags.contains(.option)
+        let isControlOptionPressed = flags.contains(.control) && flags.contains(.option)
 
         if isCmdShiftPressed && !wasCmdShiftPressed {
             toggleOverlay()
         }
+        
+        if isControlOptionPressed && !wasControlOptionPressed {
+            iClip.shared.toggleOverlay()
+        }
 
         wasCmdShiftPressed = isCmdShiftPressed
+        wasControlOptionPressed = isControlOptionPressed
     }
 
     func ensureAuthorization(completion: @escaping (Bool) -> Void) {
@@ -168,7 +175,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.contentView = NSHostingView(
                 rootView: RunningApps(app: app, isSelected: index == selectedIndex, preview: nil)
             )
-
             overlayWindow.append(window)
         }
         
@@ -233,11 +239,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         for (index, window) in overlayWindow.enumerated() {
             guard let host = window.contentView as? NSHostingView<RunningApps> else { continue }
             let old = host.rootView
-            host.rootView = RunningApps(
-                app: old.app,
-                isSelected: index == selectedIndex,
-                preview: nil
-            )
+//            host.rootView = RunningApps(
+//                app: old.app,
+//                isSelected: index == selectedIndex,
+//                preview: nil
+//            )
+            NSAnimationContext.runAnimationGroup{ _ in
+                host.rootView = RunningApps(
+                    app: old.app,
+                    isSelected: index == selectedIndex,
+                    preview: nil
+                )
+            }
         }
         
         updatePreviewPosition()
@@ -280,8 +293,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.stopNavigation()
                 self.activateWindow()
                 return nil
-                
-//            case 1:
                 
             default:
                 return event

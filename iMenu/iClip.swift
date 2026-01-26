@@ -6,6 +6,13 @@ import Combine
 @MainActor
 
 class iClip: NSObject, NSApplicationDelegate {
+    
+    static let shared = iClip()
+    private override init() {
+        super.init()
+    }
+    
+    
     final class OverlayWindow: NSWindow {
         override var canBecomeKey: Bool { true }
         override var canBecomeMain: Bool { true }
@@ -109,6 +116,17 @@ class iClip: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         
         startNavigation()
+    }
+    
+    func handleFlagsChanged(_ event: NSEvent) {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let isHotkeyPressed = flags.contains(.control) && flags.contains(.option)
+        
+        if isHotkeyPressed && !wasHotKeyPressed {
+            toggleOverlay()
+        }
+        
+        wasHotKeyPressed = isHotkeyPressed
     }
     
     func startNavigation() {
