@@ -234,11 +234,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         for (index, window) in overlayWindow.enumerated() {
             guard let host = window.contentView as? NSHostingView<RunningApps> else { continue }
             let old = host.rootView
-//            host.rootView = RunningApps(
-//                app: old.app,
-//                isSelected: index == selectedIndex,
-//                preview: nil
-//            )
             NSAnimationContext.runAnimationGroup{ _ in
                 host.rootView = RunningApps(
                     app: old.app,
