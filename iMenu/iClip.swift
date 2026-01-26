@@ -117,6 +117,7 @@ class iClip: NSObject, NSApplicationDelegate {
         }
         
         createOverlay()
+        overlayWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         
         startNavigation()
@@ -174,7 +175,13 @@ class iClip: NSObject, NSApplicationDelegate {
         @FocusState private var isFocused: Bool
         @ObservedObject var store: ClipboardStore
         
-        @State private var selectedItem: String?
+        var selectedItem: String? {
+            guard !filterData.isEmpty,
+                  store.selectedIndex >= 0,
+                  store.selectedIndex < filterData.count else { return nil }
+            return filterData[store.selectedIndex]
+        }
+
         
         var filterData: [String] {
             query.isEmpty ? store.history : store.history.filter{ $0.localizedCaseInsensitiveContains(query)}
@@ -202,33 +209,51 @@ class iClip: NSObject, NSApplicationDelegate {
                     }
                 }
                 
-                VStack(spacing: 0) {
-                    ForEach(filterData, id: \.self) { item in
-                        ClipboardRow (
-                            item: item,
-                            isSelected: selectedItem == item,
-                            onCopy: {
-                                let pb = NSPasteboard.general
-                                pb.clearContents()
-                                pb.setString(item, forType: .string)
-                            },
-                            onDelete: {
-                                store.deleteHistory(item)
-                            },
-                            onSelect: {
-                                selectedItem = item
+                ScrollViewReader{ proxy in
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(filterData, id: \.self) { item in
+                                ClipboardRow (
+                                    item: item,
+                                    isSelected: selectedItem == item,
+                                    onCopy: {
+                                        let pb = NSPasteboard.general
+                                        pb.clearContents()
+                                        pb.setString(item, forType: .string)
+                                    },
+                                    onDelete: {
+                                        store.deleteHistory(item)
+                                    },
+                                    onSelect: {
+                                        if let index = filterData.firstIndex(of: item) {
+                                            store.selectedIndex = index
+                                        }
+                                        
+                                        let pb = NSPasteboard.general
+                                        pb.clearContents()
+                                        pb.setString(selectedItem ?? "", forType: .string)
+                                    }
+                                )
                             }
-                        )
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .onChange(of: store.selectedIndex) { _ in
+                        if let item = selectedItem {
+                            withAnimation {
+                                proxy.scrollTo(item, anchor: .center)
+                            }
+                        }
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 10))
             }
-            .padding(14)
-            .frame(width: 360)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(.ultraThinMaterial)
-            )
+//            .padding(14)
+//            .frame(width: 360)
+//            .background(
+//                RoundedRectangle(cornerRadius: 14)
+//                    .fill(.ultraThinMaterial)
+//            )
+            
         }
         
         struct ClipboardRow: View {
