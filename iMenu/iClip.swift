@@ -18,12 +18,20 @@ class iClip: NSObject, NSApplicationDelegate {
         override var canBecomeMain: Bool { true }
     }
     
+    struct ClipboardItem: Identifiable, Equatable {
+        let id = UUID()
+        let content: String
+        let createdAt: Date
+    }
+    
     final class ClipboardStore: ObservableObject {
-        @Published var history: [String] = []
+        @Published var history: [ClipboardItem] = []
         @Published var selectedIndex: Int = 0
         
         private var lastChange = NSPasteboard.general.changeCount
         private var timer: Timer?
+        
+        let retentionDays: TimeInterval = 3 * 24 * 60 * 60
         
         init() {
             start()
@@ -39,20 +47,33 @@ class iClip: NSObject, NSApplicationDelegate {
                     
                     if let str = pb.string(forType: .string) {
                         DispatchQueue.main.async {
-                            if let existingIndex = self.history.firstIndex(of: str) {
+                            let now = Date()
+                            
+                            if let existingIndex = self.history.firstIndex(where: { $0.content == str }) {
                                 self.history.remove(at: existingIndex)
-                                self.history.insert(str, at: 0)
-                            } else {
-                                self.history.insert(str, at: 0)
                             }
+                            
+                            self.history.insert(
+                                ClipboardItem(content: str, createdAt: now),
+                                at: 0
+                            )
+                            
+                            self.removeExpiredItems()
                         }
                     }
                 }
             }
         }
         
-        func deleteHistory(_ item : String) {
-            history.removeAll{ $0 == item }
+        func deleteHistory(_ item : ClipboardItem) {
+            history.removeAll{ $0.id == item.id }
+        }
+        
+        func removeExpiredItems() {
+            let now = Date()
+            history.removeAll {
+                now >= $0.createdAt.addingTimeInterval(retentionDays)
+            }
         }
     }
     
@@ -175,11 +196,11 @@ class iClip: NSObject, NSApplicationDelegate {
         @FocusState private var isFocused: Bool
         @ObservedObject var store: ClipboardStore
 
-        var filteredData: [String] {
+        var filteredData: [ClipboardItem] {
             query.isEmpty
             ? store.history
             : store.history.filter {
-                $0.localizedCaseInsensitiveContains(query)
+                $0.content.localizedCaseInsensitiveContains(query)
             }
         }
 
@@ -208,24 +229,24 @@ class iClip: NSObject, NSApplicationDelegate {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(spacing: 0) {
-                            ForEach(Array(filteredData.enumerated()), id: \.offset) { index, item in
+                            ForEach(filteredData.indices, id: \.self) { index in
+                                let item = filteredData[index]
+                                
                                 ClipboardRow(
-                                    item: item,
+                                    item: item.content,
                                     isSelected: index == store.selectedIndex,
-                                    
                                     onCopy: {
                                         let pb = NSPasteboard.general
                                         pb.clearContents()
-                                        pb.setString(item, forType: .string)
+                                        pb.setString(item.content, forType: .string)
                                     },
                                     onDelete: {
                                         store.deleteHistory(item)
                                     },
                                     onSelect: {
                                         store.selectedIndex = index
-                                    },
+                                    }
                                 )
-                                .id(index)
                             }
                         }
                     }
