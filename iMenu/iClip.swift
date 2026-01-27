@@ -174,28 +174,24 @@ class iClip: NSObject, NSApplicationDelegate {
         @State private var query = ""
         @FocusState private var isFocused: Bool
         @ObservedObject var store: ClipboardStore
-        
-        var selectedItem: String? {
-            guard !filterData.isEmpty,
-                  store.selectedIndex >= 0,
-                  store.selectedIndex < filterData.count else { return nil }
-            return filterData[store.selectedIndex]
+
+        var filteredData: [String] {
+            query.isEmpty
+            ? store.history
+            : store.history.filter {
+                $0.localizedCaseInsensitiveContains(query)
+            }
         }
 
-        
-        var filterData: [String] {
-            query.isEmpty ? store.history : store.history.filter{ $0.localizedCaseInsensitiveContains(query)}
-        }
-        
         var body: some View {
             VStack(spacing: 12) {
+
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
-                    
+
                     TextField("Search in clipboard history...", text: $query)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 15, weight: .medium))
                         .focused($isFocused)
                 }
                 .padding(12)
@@ -208,14 +204,15 @@ class iClip: NSObject, NSApplicationDelegate {
                         isFocused = true
                     }
                 }
-                
-                ScrollViewReader{ proxy in
+
+                ScrollViewReader { proxy in
                     ScrollView {
                         VStack(spacing: 0) {
-                            ForEach(filterData, id: \.self) { item in
-                                ClipboardRow (
+                            ForEach(Array(filteredData.enumerated()), id: \.offset) { index, item in
+                                ClipboardRow(
                                     item: item,
-                                    isSelected: selectedItem == item,
+                                    isSelected: index == store.selectedIndex,
+                                    
                                     onCopy: {
                                         let pb = NSPasteboard.general
                                         pb.clearContents()
@@ -225,75 +222,67 @@ class iClip: NSObject, NSApplicationDelegate {
                                         store.deleteHistory(item)
                                     },
                                     onSelect: {
-                                        if let index = filterData.firstIndex(of: item) {
-                                            store.selectedIndex = index
-                                        }
-                                        
-                                        let pb = NSPasteboard.general
-                                        pb.clearContents()
-                                        pb.setString(selectedItem ?? "", forType: .string)
-                                    }
+                                        store.selectedIndex = index
+                                    },
                                 )
+                                .id(index)
                             }
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                     .onChange(of: store.selectedIndex) { _ in
-                        if let item = selectedItem {
-                            withAnimation {
-                                proxy.scrollTo(item, anchor: .center)
-                            }
+                        withAnimation {
+                            proxy.scrollTo(store.selectedIndex, anchor: .center)
                         }
                     }
                 }
             }
-//            .padding(14)
-//            .frame(width: 360)
-//            .background(
-//                RoundedRectangle(cornerRadius: 14)
-//                    .fill(.ultraThinMaterial)
-//            )
-            
+            .padding(14)
+            .frame(width: 360)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(.ultraThinMaterial)
+            )
         }
+    }
+
         
-        struct ClipboardRow: View {
+    struct ClipboardRow: View {
             
-            let item: String
-            let isSelected: Bool
-            let onCopy: () -> Void
-            let onDelete: () -> Void
-            let onSelect: () -> Void
-            
-            var body: some View {
-                HStack{
-                    Text(item)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .textSelection(.enabled)
+        let item: String
+        let isSelected: Bool
+        let onCopy: () -> Void
+        let onDelete: () -> Void
+        let onSelect: () -> Void
+        var body: some View {
+            HStack{
+                Text(item)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .textSelection(.enabled)
                     
-                    Spacer()
+                Spacer()
                     
-                    Button(action: onCopy){
-                        Image(systemName: "doc.on.doc")
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    Button(action: onDelete) {
-                        Image(systemName: "trash")
-                            .foregroundStyle(.secondary)
-                    }
+                Button(action: onCopy){
+                    Image(systemName: "doc.on.doc")
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .contentShape(Rectangle())
-                .onTapGesture(perform: onSelect)
-                .background(
-                    isSelected ? Color.accentColor.opacity(0.2) : Color.clear
-                )
-                
-                Divider().opacity(0.15)
+                    
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .foregroundStyle(.secondary)
+                }
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onSelect)
+            .background(
+                isSelected ? Color.accentColor.opacity(0.2) : Color.clear
+            )
+                
+            Divider().opacity(0.15)
         }
     }
 }
+
