@@ -3,6 +3,7 @@ import AppKit
 import CoreGraphics
 import Cocoa
 import ScreenCaptureKit
+import Darwin
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -22,6 +23,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var cachedApps: [NSRunningApplication] = []
     var selectedIndex: Int = 0
     var lastActiveAppID: String?
+    var terminationObserver: Any?
 
     var globalEventMonitor: Any?
     var localEventMonitor: Any?
