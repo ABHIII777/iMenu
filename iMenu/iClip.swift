@@ -195,7 +195,7 @@ class iClip: NSObject, NSApplicationDelegate {
         @State private var query = ""
         @FocusState private var isFocused: Bool
         @ObservedObject var store: ClipboardStore
-
+    
         var filteredData: [ClipboardItem] {
             query.isEmpty
             ? store.history
@@ -203,106 +203,182 @@ class iClip: NSObject, NSApplicationDelegate {
                 $0.content.localizedCaseInsensitiveContains(query)
             }
         }
-
+    
         var body: some View {
-            VStack(spacing: 12) {
-
+            VStack(spacing: 14) {
+                // Header
+                HStack {
+                    HStack(spacing: 8) {
+                        Image(systemName: "scissors")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                        
+                        Text("iClip")
+                            .font(.system(size: 14, weight: .semibold))
+                        
+                        if !store.history.isEmpty {
+                            Text("· \(store.history.count) items")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    Text("⌃⌥ to toggle · ↑ ↓ to navigate")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                
+                // Search field
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
-
-                    TextField("Search in clipboard history...", text: $query)
+                    
+                    TextField("Search clipboard…", text: $query)
                         .textFieldStyle(.plain)
                         .focused($isFocused)
                 }
-                .padding(12)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
                 .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.white.opacity(0.06))
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.white.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
                 )
                 .onAppear {
                     DispatchQueue.main.async {
                         isFocused = true
                     }
                 }
-
+    
+                // List
                 ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            ForEach(filteredData.indices, id: \.self) { index in
-                                let item = filteredData[index]
-                                
-                                ClipboardRow(
-                                    item: item.content,
-                                    isSelected: index == store.selectedIndex,
-                                    onCopy: {
-                                        let pb = NSPasteboard.general
-                                        pb.clearContents()
-                                        pb.setString(item.content, forType: .string)
-                                    },
-                                    onDelete: {
-                                        store.deleteHistory(item)
-                                    },
-                                    onSelect: {
-                                        store.selectedIndex = index
+                    Group {
+                        if filteredData.isEmpty {
+                            VStack(spacing: 8) {
+                                Image(systemName: "rectangle.and.text.magnifyingglass")
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(.secondary)
+                                Text("No clipboard items yet")
+                                    .font(.system(size: 12, weight: .medium))
+                                Text("Copy something and it will appear here automatically.")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .padding(.vertical, 32)
+                        } else {
+                            ScrollView {
+                                VStack(spacing: 0) {
+                                    ForEach(filteredData.indices, id: \.self) { index in
+                                        let item = filteredData[index]
+                                        
+                                        ClipboardRow(
+                                            item: item.content,
+                                            isSelected: index == store.selectedIndex,
+                                            onCopy: {
+                                                let pb = NSPasteboard.general
+                                                pb.clearContents()
+                                                pb.setString(item.content, forType: .string)
+                                            },
+                                            onDelete: {
+                                                store.deleteHistory(item)
+                                            },
+                                            onSelect: {
+                                                store.selectedIndex = index
+                                            }
+                                        )
+                                        .id(index)
                                     }
-                                )
+                                }
                             }
                         }
                     }
                     .onChange(of: store.selectedIndex) { _ in
-                        withAnimation {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
                             proxy.scrollTo(store.selectedIndex, anchor: .center)
                         }
                     }
                 }
             }
-            .padding(14)
-            .frame(width: 360)
+            .padding(16)
+            .frame(width: 380, height: 420)
             .background(
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(.ultraThinMaterial)
+                    .shadow(color: Color.black.opacity(0.35), radius: 24, x: 0, y: 18)
             )
         }
     }
-
-        
+    
     struct ClipboardRow: View {
-            
         let item: String
         let isSelected: Bool
         let onCopy: () -> Void
         let onDelete: () -> Void
         let onSelect: () -> Void
+        
         var body: some View {
-            HStack{
-                Text(item)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .textSelection(.enabled)
+            VStack(spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(item)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .textSelection(.enabled)
+                        .multilineTextAlignment(.leading)
                     
-                Spacer()
-                    
-                Button(action: onCopy){
-                    Image(systemName: "doc.on.doc")
-                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
                 }
-                    
-                Button(action: onDelete) {
-                    Image(systemName: "trash")
+                
+                HStack(spacing: 10) {
+                    Text("Press ⌘V in your app after pasting")
+                        .font(.system(size: 10))
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    
+                    Spacer()
+                    
+                    Button(action: onCopy) {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onSelect)
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .background(
-                isSelected ? Color.accentColor.opacity(0.2) : Color.clear
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(
+                        isSelected
+                        ? Color.accentColor.opacity(0.22)
+                        : Color.clear
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(
+                                isSelected
+                                ? Color.accentColor.opacity(0.7)
+                                : Color.white.opacity(0.06),
+                                lineWidth: isSelected ? 1.4 : 1
+                            )
+                    )
             )
-                
-            Divider().opacity(0.15)
+            .onTapGesture(perform: onSelect)
         }
     }
 }

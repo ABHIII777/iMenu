@@ -460,35 +460,90 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var app: NSRunningApplication
         var isSelected: Bool
         var preview: NSImage?
-
+        
+        private var appName: String {
+            app.localizedName ?? "Untitled app"
+        }
+        
         var body: some View {
             HStack(spacing: 12) {
-                if let icon = app.icon {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .frame(width: 36, height: 36)
-                        .cornerRadius(8)
+                ZStack {
+                    if let icon = app.icon {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 34, height: 34)
+                            .cornerRadius(8)
+                    } else {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(.gray.opacity(0.2))
+                            .overlay(
+                                Image(systemName: "app.dashed")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                            )
+                            .frame(width: 34, height: 34)
+                    }
                 }
-
-                Text(app.localizedName ?? "")
-                    .font(.system(size: 14, weight: .medium))
-
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(appName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .lineLimit(1)
+                    
+                    if let bundleID = app.bundleIdentifier {
+                        Text(bundleID)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                
                 Spacer()
+                
+                if isSelected {
+                    Text("Selected")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .fill(Color.accentColor.opacity(0.12))
+                        )
+                }
             }
-            .frame(width: 320)
+            .frame(width: 320, alignment: .leading)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(.gray.opacity(0.15))
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(isSelected ? 0.18 : 0.06),
+                                Color.black.opacity(isSelected ? 0.35 : 0.18)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(isSelected ? .white : .clear, lineWidth: 3)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(
+                                Color.white.opacity(isSelected ? 0.8 : 0.18),
+                                lineWidth: isSelected ? 1.8 : 1
+                            )
+                    )
+                    .shadow(
+                        color: Color.black.opacity(isSelected ? 0.45 : 0.22),
+                        radius: isSelected ? 18 : 10,
+                        x: 0,
+                        y: isSelected ? 10 : 6
                     )
             )
-            .scaleEffect(isSelected ? 1.05 : 1.0)
-            .shadow(radius: isSelected ? 20 : 8)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
+            .scaleEffect(isSelected ? 1.04 : 1.0)
+            .animation(.spring(response: 0.28, dampingFraction: 0.72), value: isSelected)
         }
     }
     
@@ -496,38 +551,71 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var image: NSImage?
         
         var body: some View {
-            Group {
-                if let image = image {
-                    Image(nsImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: 600, maxHeight: 400)
-                        .padding(10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(.ultraThinMaterial)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .stroke(.white, lineWidth: 3)
-                                )
-                        )
-                        .transition(.opacity.combined(with: .scale))
-                } else {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(.ultraThinMaterial)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(Color.accentColor.opacity(0.15), lineWidth: 2)
-                        )
-                        .frame(width: 600, height: 400)
-                        .padding(10)
-                        .overlay(
-                            ProgressView()
-                                .scaleEffect(1.5)
-                        )
+            ZStack {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.85),
+                                        Color.white.opacity(0.25)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1.5
+                            )
+                    )
+                    .shadow(
+                        color: Color.black.opacity(0.35),
+                        radius: 24,
+                        x: 0,
+                        y: 18
+                    )
+                
+                VStack(spacing: 10) {
+                    HStack {
+                        Text("Live preview")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        
+                        Spacer()
+                        
+                        Text("↩ to switch")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary.opacity(0.8))
+                    }
+                    .padding(.horizontal, 10)
+                    
+                    Group {
+                        if let image = image {
+                            Image(nsImage: image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: 560, maxHeight: 360)
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .shadow(radius: 10)
+                                .transition(.opacity.combined(with: .scale))
+                        } else {
+                            VStack(spacing: 10) {
+                                ProgressView()
+                                    .scaleEffect(1.2)
+                                
+                                Text("Capturing window preview…")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                    .frame(maxWidth: 560, maxHeight: 380)
                 }
+                .padding(14)
             }
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: image != nil)
+            .frame(width: 600, height: 400)
+            .animation(.spring(response: 0.3, dampingFraction: 0.78), value: image != nil)
         }
     }
 }
