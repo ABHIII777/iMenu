@@ -10,12 +10,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     final class OverlayWindow: NSWindow {
         var index: Int
+        
         init(index: Int, contentRect: NSRect, styleMask: NSWindow.StyleMask, backing: NSWindow.BackingStoreType, defer flag: Bool) {
             self.index = index
             super.init(contentRect: contentRect, styleMask: styleMask, backing: backing, defer: flag)
         }
+        
         override var canBecomeKey: Bool { true }
         override var canBecomeMain: Bool { true }
+    }
+    
+    final class NonKeyWindow: NSWindow {
+        var index: Int
+        
+        init(index: Int, contentRect: NSRect, styleMask: NSWindow.StyleMask, backing: NSWindow.BackingStoreType, defer flag: Bool) {
+            self.index = index
+            super.init(contentRect: contentRect, styleMask: styleMask, backing: backing, defer: flag)
+        }
+        
+        override var canBecomeKey: Bool { false }
+        override var canBecomeMain: Bool { false }
     }
 
     var overlayWindow: [NSWindow] = []
@@ -109,6 +123,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if self.overlayWindow.contains(where: { $0.isVisible }) {
                 self.overlayWindow.forEach { $0.orderOut(nil) }
                 self.previewWindow?.orderOut(nil)
+                self.systemMonitorWindow?.orderOut(nil)
                 self.stopNavigation()
                 NSApp.setActivationPolicy(.accessory)
                 return
@@ -116,7 +131,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             self.createOverlay()
             self.overlayWindow.forEach { $0.makeKeyAndOrderFront(nil) }
-            self.previewWindow?.makeKeyAndOrderFront(nil)
+            self.overlayWindow.first?.makeKeyAndOrderFront(nil)
+
+            self.previewWindow?.orderFront(nil)
+            self.systemMonitorWindow?.orderFront(nil)
+
             NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
 
@@ -210,7 +229,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         let previewSize = NSSize(width: 400, height: 300)
         
-        let previewWindow = OverlayWindow(
+        let previewWindow = NonKeyWindow(
             index: -1,
             contentRect: NSRect(
                 origin: CGPoint(
@@ -358,6 +377,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             case 36, 76:
                 self.overlayWindow.forEach { $0.orderOut(nil) }
                 self.previewWindow?.orderOut(nil)
+                self.systemMonitorWindow?.orderOut(nil)
                 self.stopNavigation()
                 self.activateWindow()
                 return nil
