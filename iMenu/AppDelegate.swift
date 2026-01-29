@@ -16,8 +16,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             super.init(contentRect: contentRect, styleMask: styleMask, backing: backing, defer: flag)
         }
         
-        override var canBecomeKey: Bool { true }
-        override var canBecomeMain: Bool { true }
+        override var canBecomeKey: Bool { false }
+        override var canBecomeMain: Bool { false }
     }
     
     final class NonKeyWindow: NSWindow {
@@ -136,7 +136,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.previewWindow?.orderFront(nil)
             self.systemMonitorWindow?.orderFront(nil)
 
-            NSApp.setActivationPolicy(.regular)
+//            NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
 
             self.navigateWindows()
@@ -209,6 +209,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.hasShadow = true
             window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
             window.isReleasedWhenClosed = false
+//            window.orderFrontRegardless()
 
             window.contentView = NSHostingView(
                 rootView: RunningApps(app: app, isSelected: index == selectedIndex, preview: nil)
