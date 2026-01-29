@@ -110,12 +110,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.overlayWindow.forEach { $0.orderOut(nil) }
                 self.previewWindow?.orderOut(nil)
                 self.stopNavigation()
+                NSApp.setActivationPolicy(.accessory)
                 return
             }
 
             self.createOverlay()
             self.overlayWindow.forEach { $0.makeKeyAndOrderFront(nil) }
             self.previewWindow?.makeKeyAndOrderFront(nil)
+            NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
 
             self.navigateWindows()
