@@ -304,6 +304,8 @@ class iClip: NSObject, NSApplicationDelegate {
                         }
                     }
                 }
+                
+                SystemMonitorBar()
             }
             .padding(16)
             .frame(width: 380, height: 420)

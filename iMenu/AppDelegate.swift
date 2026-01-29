@@ -20,6 +20,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     var overlayWindow: [NSWindow] = []
     var previewWindow: NSWindow?
+    var systemMonitorWindow: NSWindow?
     var cachedApps: [NSRunningApplication] = []
     var selectedIndex: Int = 0
     var lastActiveAppID: String?
@@ -153,6 +154,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         overlayWindow.removeAll()
         previewWindow?.close()
         previewWindow = nil
+        systemMonitorWindow?.close()
+        systemMonitorWindow = nil
         selectedIndex = 0
 
         let windowSize = NSSize(width: 320, height: 100)
@@ -193,6 +196,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         createPreviewWindow()
+        createSystemMonitorWindow()
     }
     
     func createPreviewWindow() {
@@ -232,9 +236,45 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.previewWindow = previewWindow
     }
     
+    func createSystemMonitorWindow() {
+        systemMonitorWindow?.close()
+        systemMonitorWindow = nil
+        
+        guard let screen = NSScreen.main else { return }
+        let screenFrame = screen.visibleFrame
+        
+        let monitorSize = NSSize(width: 220, height: 150)
+        
+        let window = OverlayWindow(
+            index: -2,
+            contentRect: NSRect(
+                origin: CGPoint(
+                    x: screenFrame.midX - monitorSize.width - 260,
+                    y: screenFrame.midY - monitorSize.height / 2
+                ),
+                size: monitorSize
+            ),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        
+        window.level = .floating
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = true
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
+        window.isReleasedWhenClosed = false
+        
+        window.contentView = NSHostingView(
+            rootView: SystemMonitorPanel()
+        )
+        
+        systemMonitorWindow = window
+    }
+    
     func updatePreviewPosition() {
         guard let previewWindow = previewWindow,
-              let screen = NSScreen.main,
               selectedIndex < overlayWindow.count else { return }
         
         let selectedWindow = overlayWindow[selectedIndex]
@@ -247,6 +287,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
         
         previewWindow.setFrameOrigin(newOrigin)
+    }
+    
+    func updateSystemMonitorPosition() {
+        guard let systemMonitorWindow,
+              selectedIndex < overlayWindow.count else { return }
+        
+        let selectedWindow = overlayWindow[selectedIndex]
+        let selectedFrame = selectedWindow.frame
+        let monitorSize = systemMonitorWindow.frame.size
+        
+        let newOrigin = CGPoint(
+            x: selectedFrame.minX - monitorSize.width - 20,
+            y: selectedFrame.midY - monitorSize.height / 2
+        )
+        
+        systemMonitorWindow.setFrameOrigin(newOrigin)
     }
 
     func updateSelectionUI() {
@@ -263,6 +319,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         updatePreviewPosition()
+        updateSystemMonitorPosition()
     }
 
     func moveSelection(_ delta: Int) {
@@ -611,6 +668,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         }
                     }
                     .frame(maxWidth: 560, maxHeight: 380)
+                    
+                    SystemMonitorBar()
                 }
                 .padding(14)
             }
