@@ -136,7 +136,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.previewWindow?.orderFront(nil)
             self.systemMonitorWindow?.orderFront(nil)
 
-//            NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
 
             self.navigateWindows()
@@ -209,7 +208,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.hasShadow = true
             window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
             window.isReleasedWhenClosed = false
-//            window.orderFrontRegardless()
 
             window.contentView = NSHostingView(
                 rootView: RunningApps(app: app, isSelected: index == selectedIndex, preview: nil)
@@ -341,7 +339,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         updatePreviewPosition()
-        updateSystemMonitorPosition()
+//        updateSystemMonitorPosition()
     }
 
     func moveSelection(_ delta: Int) {

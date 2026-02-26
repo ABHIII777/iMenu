@@ -69,6 +69,11 @@ class iClip: NSObject, NSApplicationDelegate {
             history.removeAll{ $0.id == item.id }
         }
         
+        func clearAllHistory() {
+            history.removeAll()
+            selectedIndex = 0
+        }
+        
         func removeExpiredItems() {
             let now = Date()
             history.removeAll {
@@ -224,6 +229,18 @@ class iClip: NSObject, NSApplicationDelegate {
                     }
                     
                     Spacer()
+                    
+                    if !store.history.isEmpty {
+                        Button {
+                            store.clearAllHistory()
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help("Clear Clipboard History")
+                    }
                     
                     Text("⌃⌥ to toggle · ↑ ↓ to navigate")
                         .font(.system(size: 10, weight: .medium))
