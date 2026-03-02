@@ -401,4 +401,3 @@ class iClip: NSObject, NSApplicationDelegate {
         }
     }
 }
-
