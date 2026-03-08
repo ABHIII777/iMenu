@@ -85,34 +85,20 @@ private func currentBatteryPercent() -> Int? {
 
 struct SystemMonitorBar: View {
     @State private var snapshot = SystemSnapshot.current()
-    
+
     var body: some View {
-        HStack(spacing: 8) {
-            MetricPill(
-                label: "Storage",
-                value: snapshot.diskUsedPercent.map { "\($0)%" } ?? "–"
-            )
-            
-            MetricPill(
-                label: "Memory",
-                value: snapshot.memoryUsedPercent.map { "\($0)%" } ?? "–"
-            )
-            
-            MetricPill(
-                label: "Battery",
-                value: snapshot.batteryPercent.map { "\($0)%" } ?? "–"
-            )
+        HStack(spacing: 12) {
+            MetricPill(label: "MEM", value: snapshot.memoryUsedPercent.map { "\($0)%" } ?? "–")
+            MetricPill(label: "DSK", value: snapshot.diskUsedPercent.map { "\($0)%" } ?? "–")
+            MetricPill(label: "BAT", value: snapshot.batteryPercent.map { "\($0)%" } ?? "–")
         }
-        .font(.system(size: 10, weight: .medium))
-        .foregroundStyle(.secondary)
-        .padding(8)
+        .font(.system(size: 10, weight: .medium).monospacedDigit())
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.black.opacity(0.18))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
-                )
+            Capsule(style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(Capsule(style: .continuous).strokeBorder(.white.opacity(0.1), lineWidth: 1))
         )
         .onAppear {
             Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
@@ -120,24 +106,19 @@ struct SystemMonitorBar: View {
             }
         }
     }
-    
+
     private struct MetricPill: View {
         let label: String
         let value: String
-        
+
         var body: some View {
             HStack(spacing: 4) {
                 Text(label)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.quaternary)
+                    .kerning(0.3)
                 Text(value)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 7)
-            .padding(.vertical, 4)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color.white.opacity(0.08))
-            )
         }
     }
 }
@@ -145,183 +126,163 @@ struct SystemMonitorBar: View {
 struct SystemMonitorPanel: View {
     @State private var snapshot = SystemSnapshot.current()
     @State private var memoryHistory: [Int] = []
-    
     private let maxHistoryCount = 60
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header
-            HStack(spacing: 6) {
-                Image(systemName: "gauge.medium")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                
-                Text("System monitor")
-                    .font(.system(size: 13, weight: .semibold))
-                
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("System")
+                    .font(.system(size: 11, weight: .semibold))
+                    .textCase(.uppercase)
+                    .kerning(0.8)
+                    .foregroundStyle(.primary)
                 Spacer()
-                
                 Text(Date(), style: .time)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 10).monospacedDigit())
+                    .foregroundStyle(.tertiary)
             }
-            
-            // Memory usage graph
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
+            .padding(.horizontal, 14)
+            .padding(.top, 14)
+            .padding(.bottom, 12)
+
+            Divider().opacity(0.15)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline) {
                     Text("Memory")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                        .textCase(.uppercase)
+                        .kerning(0.5)
                     Spacer()
                     if let mem = snapshot.memoryUsedPercent {
-                        Text("\(mem)% used")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                        Text("\(mem)%")
+                            .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(memoryColor(mem))
                     }
                 }
-                
+
                 GeometryReader { geo in
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.white.opacity(0.04))
-                        
+                    ZStack(alignment: .bottomLeading) {
+                        VStack(spacing: 0) {
+                            ForEach(0..<3) { _ in
+                                Divider().opacity(0.07)
+                                Spacer()
+                            }
+                        }
+
                         if memoryHistory.count >= 2 {
                             let values = memoryHistory
-                            let maxVal = max(100, values.max() ?? 100)
-                            let minVal = min(0, values.min() ?? 0)
-                            let span = max(1, maxVal - minVal)
-                            
+
                             Path { path in
-                                for (idx, value) in values.enumerated() {
-                                    let x = geo.size.width * CGFloat(idx) / CGFloat(max(values.count - 1, 1))
-                                    let normalized = CGFloat(value - minVal) / CGFloat(span)
-                                    let y = geo.size.height * (1 - normalized)
-                                    
-                                    if idx == 0 {
-                                        path.move(to: CGPoint(x: x, y: y))
-                                    } else {
-                                        path.addLine(to: CGPoint(x: x, y: y))
-                                    }
+                                for (i, v) in values.enumerated() {
+                                    let x = geo.size.width * CGFloat(i) / CGFloat(max(values.count - 1, 1))
+                                    let y = geo.size.height * (1 - CGFloat(v) / 100)
+                                    i == 0 ? path.move(to: .init(x: x, y: y)) : path.addLine(to: .init(x: x, y: y))
                                 }
-                            }
-                            .stroke(
-                                LinearGradient(
-                                    colors: [
-                                        Color.accentColor,
-                                        Color.accentColor.opacity(0.4)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                ),
-                                style: StrokeStyle(lineWidth: 1.4, lineJoin: .round)
-                            )
-                            
-                            // Subtle fill under the line
-                            Path { path in
-                                for (idx, value) in values.enumerated() {
-                                    let x = geo.size.width * CGFloat(idx) / CGFloat(max(values.count - 1, 1))
-                                    let normalized = CGFloat(value - minVal) / CGFloat(span)
-                                    let y = geo.size.height * (1 - normalized)
-                                    
-                                    if idx == 0 {
-                                        path.move(to: CGPoint(x: x, y: y))
-                                    } else {
-                                        path.addLine(to: CGPoint(x: x, y: y))
-                                    }
-                                }
-                                path.addLine(to: CGPoint(x: geo.size.width, y: geo.size.height))
-                                path.addLine(to: CGPoint(x: 0, y: geo.size.height))
+                                path.addLine(to: .init(x: geo.size.width, y: geo.size.height))
+                                path.addLine(to: .init(x: 0, y: geo.size.height))
                                 path.closeSubpath()
                             }
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.accentColor.opacity(0.28),
-                                        Color.clear
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
+                            .fill(LinearGradient(
+                                colors: [Color.accentColor.opacity(0.18), .clear],
+                                startPoint: .top, endPoint: .bottom
+                            ))
+
+                            Path { path in
+                                for (i, v) in values.enumerated() {
+                                    let x = geo.size.width * CGFloat(i) / CGFloat(max(values.count - 1, 1))
+                                    let y = geo.size.height * (1 - CGFloat(v) / 100)
+                                    i == 0 ? path.move(to: .init(x: x, y: y)) : path.addLine(to: .init(x: x, y: y))
+                                }
+                            }
+                            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.2, lineJoin: .round))
+
                         } else {
-                            Text("Collecting memory data…")
+                            Text("Collecting…")
                                 .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.quaternary)
                         }
                     }
                 }
-                .frame(height: 70)
+                .frame(height: 56)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
             }
-            
-            // Other metrics
-            HStack(spacing: 8) {
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+
+            Divider().opacity(0.15)
+
+            HStack(spacing: 0) {
                 MetricTile(
-                    title: "Storage",
-                    systemImage: "internaldrive",
-                    value: snapshot.diskUsedPercent.map { "\($0)%" } ?? "–"
+                    label: "Storage",
+                    icon: "internaldrive",
+                    value: snapshot.diskUsedPercent.map { "\($0)%" } ?? "–",
+                    tint: storageColor(snapshot.diskUsedPercent ?? 0)
                 )
-                
+                Rectangle()
+                    .fill(.white.opacity(0.08))
+                    .frame(width: 1)
+                    .padding(.vertical, 10)
                 MetricTile(
-                    title: "Battery",
-                    systemImage: "battery.100",
-                    value: snapshot.batteryPercent.map { "\($0)%" } ?? "–"
+                    label: "Battery",
+                    icon: "bolt",
+                    value: snapshot.batteryPercent.map { "\($0)%" } ?? "–",
+                    tint: batteryColor(snapshot.batteryPercent ?? 100)
                 )
             }
         }
-        .padding(12)
-        .frame(width: 200)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.35), radius: 20, x: 0, y: 14)
-        )
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.ultraThinMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.1), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: .black.opacity(0.22), radius: 18, x: 0, y: 10)
+        .frame(width: 220)
         .onAppear {
             updateSnapshot()
-            Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { _ in
-                updateSnapshot()
-            }
+            Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { _ in updateSnapshot() }
         }
     }
-    
+
     private func updateSnapshot() {
-        let newSnapshot = SystemSnapshot.current()
-        snapshot = newSnapshot
-        
-        if let mem = newSnapshot.memoryUsedPercent {
+        let s = SystemSnapshot.current()
+        snapshot = s
+        if let mem = s.memoryUsedPercent {
             memoryHistory.append(mem)
             if memoryHistory.count > maxHistoryCount {
                 memoryHistory.removeFirst(memoryHistory.count - maxHistoryCount)
             }
         }
     }
-    
+
+    private func memoryColor(_ v: Int) -> Color  { v > 85 ? .red : v > 65 ? .orange : .primary }
+    private func storageColor(_ v: Int) -> Color { v > 90 ? .red : v > 75 ? .orange : Color.accentColor }
+    private func batteryColor(_ v: Int) -> Color { v < 15 ? .red : v < 30 ? .orange : Color.accentColor }
+
     private struct MetricTile: View {
-        let title: String
-        let systemImage: String
+        let label: String
+        let icon: String
         let value: String
-        
+        let tint: Color
+
         var body: some View {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 4) {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 11))
-                    Text(title)
-                        .font(.system(size: 11, weight: .medium))
+                    Image(systemName: icon)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(tint)
+                    Text(label)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                        .textCase(.uppercase)
+                        .kerning(0.4)
                 }
-                .foregroundStyle(.secondary)
-                
                 Text(value)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(.primary)
             }
-            .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
-            )
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
         }
     }
 }
