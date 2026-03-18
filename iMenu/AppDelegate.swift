@@ -5,6 +5,9 @@ import Cocoa
 import ScreenCaptureKit
 import Darwin
 
+@_silgen_name("_AXUIElementGetWindow")
+func _AXUIElementGetWindow(_ element: AXUIElement, _ windowID: UnsafeMutablePointer<CGWindowID>) -> AXError
+
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     
@@ -32,18 +35,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         override var canBecomeMain: Bool { false }
     }
     
+    struct AppEntry {
+        let app: SCRunningApplication
+        let representativeWindow: SCWindow
+    }
+    
     var overlayWindow: [NSWindow] = []
     var previewWindow: NSWindow?
-    var cachedApps: [NSRunningApplication] = []
-    var cachedWindows: [WindowItem] = []
-    var windowPreviews: [SCWindow: NSImage] = [:]
     var selectedIndex: Int = 0
-    var lastActiveAppID: String?
     
-    var windows: [SCWindow] = []
-    var selectedWindow: SCWindow?
-    
-    var terminationObserver: Any?
+    var apps: [AppEntry] = []
+    var selectedApp: AppEntry?
     
     var globalEventMonitor: Any?
     var localEventMonitor: Any?
@@ -60,25 +62,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var windowStreams: [SCWindow: SCStream] = [:]
     var streamOutputs: [SCWindow: AnyObject] = [:]
     
-    private static let disallowedBundleIDPrefixes: Set<String> = [
-        "com.apple.loginwindow",
-        "com.apple.WindowServer",
-        "com.apple.notificationcenterui",
-        "com.apple.controlcenter",
-        "com.apple.dock",
-        "com.apple.Spotlight",
-        "com.apple.ScreenTimeAgent",
-        "com.apple.WebKit.WebContent",
-        "com.apple.WebKit.Networking",
-        "com.apple.Safari.WebFeedParser",
-        "com.apple.Safari.SandboxBroker",
-        "com.apple.finder",
-    ]
-    
     let ciContext = CIContext()
+    
+    private static let excludedBundleIDs: Set<String> = [
+        "com.apple.finder",
+        "com.apple.systempreferences",
+    ]
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+
+        let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue(): true] as CFDictionary
+        AXIsProcessTrustedWithOptions(options)
+
         setupGlobalHotkey()
     }
     
@@ -113,8 +109,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func handleFlagsChanged(_ event: NSEvent) {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let isCmdOptionPressed     = flags.contains(.command) && flags.contains(.option)
-        let isControlOptionPressed = flags.contains(.control) && flags.contains(.option)
+        let isCmdOptionPressed      = flags.contains(.command) && flags.contains(.option)
+        let isControlOptionPressed  = flags.contains(.control) && flags.contains(.option)
         let isCommandControlPressed = flags.contains(.command) && flags.contains(.control)
             && !flags.contains(.option)
 
@@ -134,23 +130,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 NSApp.setActivationPolicy(.accessory)
             }
             iClip.shared.toggleOverlay()
-            isClipboardOverlayVisible.toggle() 
+            isClipboardOverlayVisible.toggle()
         }
 
         if isCommandControlPressed && !wasCommandControlPressed {
             toggleStandaloneMonitor()
         }
 
-        wasCmdShiftPressed = isCmdOptionPressed
+        wasCmdShiftPressed      = isCmdOptionPressed
         wasControlOptionPressed = isControlOptionPressed
         wasCommandControlPressed = isCommandControlPressed
     }
     
     func ensureAuthorization(completion: @escaping (Bool) -> Void) {
         if CGPreflightScreenCaptureAccess() {
-            DispatchQueue.main.async {
-                completion(true)
-            }
+            DispatchQueue.main.async { completion(true) }
         } else {
             DispatchQueue.main.async {
                 let granted = CGRequestScreenCaptureAccess()
@@ -174,6 +168,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.refreshWindowsAndOverlay()
         }
     }
+
     func toggleStandaloneMonitor() {
         if let existing = standAloneMonitorWindow, existing.isVisible {
             existing.orderOut(nil)
@@ -219,65 +214,63 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func onScreenWindowIDs() -> Set<CGWindowID> {
         guard let list = CGWindowListCopyWindowInfo(
-            [.excludeDesktopElements],
+            [.optionOnScreenOnly, .excludeDesktopElements],
             kCGNullWindowID
         ) as? [[String: Any]] else { return [] }
 
-        return Set(list.compactMap { info -> CGWindowID? in 
-            guard 
+        return Set(list.compactMap { info -> CGWindowID? in
+            guard
                 let layer = info[kCGWindowLayer as String] as? Int,
                 layer == 0
             else { return nil }
 
+            guard
+                let alpha = info[kCGWindowAlpha as String] as? Double,
+                alpha > 0.1
+            else { return nil }
+
+            guard
+                let bounds = info[kCGWindowBounds as String] as? [String: CGFloat],
+                let width = bounds["Width"],
+                let height = bounds["Height"],
+                width > 100,
+                height > 100
+            else { return nil }
+
             return info[kCGWindowNumber as String] as? CGWindowID
-         })
+        })
     }
     
     func refreshWindowsAndOverlay() {
         SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: false) { [weak self] content, _ in
             guard let self, let content else { return }
 
-            let validIDs = self.onScreenWindowIDs()
-            
-            let filtered: [SCWindow] = content.windows.compactMap { w in
-                guard
+            var windows: [SCWindow] = []
+
+            for w in content.windows {
+                guard 
                     let scApp = w.owningApplication,
                     let nsApp = NSRunningApplication(processIdentifier: scApp.processID),
                     nsApp.activationPolicy == .regular,
                     !nsApp.isHidden,
-                    w.frame.width > 50,
-                    w.frame.height > 50,
-                    validIDs.contains(w.windowID)
-                else { return nil }
-                
-                guard NSScreen.screens.contains(where: {
-                    !NSIntersectionRect($0.visibleFrame, w.frame).isEmpty
-                }) else { return nil }
-                
-                if let bundleID = nsApp.bundleIdentifier,
-                   Self.disallowedBundleIDPrefixes.contains(where: { bundleID.hasPrefix($0) }) {
-                    return nil
-                }
-                
-                guard !(w.title?.isEmpty ?? true) || !(scApp.applicationName.isEmpty) else {
-                    return nil
-                }
-                
-                return w
+                    !scApp.applicationName.isEmpty,
+                    w.frame.width > 120,
+                    w.frame.height > 120,
+                    !(nsApp.bundleIdentifier.map {Self.excludedBundleIDs.contains($0)} ?? false)
+                else { continue }
+
+                windows.append(w)
             }
-            
-            let sorted = filtered.sorted {
-                let aName = $0.owningApplication?.applicationName ?? ""
-                let bName = $1.owningApplication?.applicationName ?? ""
-                if aName != bName { return aName < bName }
-                return $0.frame.origin.y > $1.frame.origin.y
+
+            let entries = windows.map {
+                AppEntry(app: $0.owningApplication!, representativeWindow: $0)
             }
-            
+
             Task { @MainActor in
-                self.windows = sorted
+                self.apps = entries
                 self.selectedIndex = 0
-                self.buildOverlay(from: sorted)
-                self.selectedWindow = sorted.first
+                self.buildOverlay(from: entries)
+                self.selectedApp = entries.first
                 self.captureSelectedWindowPreview()
                 self.previewWindow?.orderFront(nil)
                 NSApp.activate(ignoringOtherApps: true)
@@ -286,19 +279,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    func buildOverlay(from windows: [SCWindow]) {
+    func buildOverlay(from entries: [AppEntry]) {
         overlayWindow.forEach { $0.close() }
         overlayWindow.removeAll()
         previewWindow?.close(); previewWindow = nil
         
         guard let screen = NSScreen.main else { return }
         let screenFrame = screen.visibleFrame
-        let windowSize = NSSize(width: 320, height: 100)
-        let spacing: CGFloat = 70
-        let totalHeight = CGFloat(windows.count) * spacing
+        let windowSize  = NSSize(width: 320, height: 115)
+        let spacing: CGFloat = 82
+        let totalHeight = CGFloat(entries.count) * spacing
         let startY = screenFrame.midY + (totalHeight / 2) - (spacing / 2)
         
-        for (index, scWindow) in windows.enumerated() {
+        for (index, entry) in entries.enumerated() {
             let y = startY - CGFloat(index) * spacing
             
             let window = OverlayWindow(
@@ -323,7 +316,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.isReleasedWhenClosed = false
             
             window.contentView = NSHostingView(
-                rootView: WindowRow(window: scWindow, isSelected: index == selectedIndex)
+                rootView: AppRow(entry: entry, isSelected: index == selectedIndex)
             )
             
             overlayWindow.append(window)
@@ -338,25 +331,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
               selectedIndex < overlayWindow.count else { return }
         
         let selectedWindow = overlayWindow[selectedIndex]
-        let selectedFrame = selectedWindow.frame
-        let previewSize = previewWindow.frame.size
+        let selectedFrame  = selectedWindow.frame
+        let previewSize    = previewWindow.frame.size
         
         let newOrigin = CGPoint(
             x: selectedFrame.maxX + 20,
             y: selectedFrame.midY - previewSize.height / 2
         )
-        
         previewWindow.setFrameOrigin(newOrigin)
     }
     
     func updateSelectionUI() {
         for (index, window) in overlayWindow.enumerated() {
-            if let host = window.contentView as? NSHostingView<WindowRow> {
+            if let host = window.contentView as? NSHostingView<AppRow> {
                 let old = host.rootView
-                host.rootView = WindowRow(window: old.window, isSelected: index == selectedIndex)
+                host.rootView = AppRow(entry: old.entry, isSelected: index == selectedIndex)
             }
         }
-        
         updatePreviewPosition()
     }
     
@@ -365,9 +356,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         selectedIndex = (selectedIndex + delta + overlayWindow.count) % overlayWindow.count
         
         updateSelectionUI()
-        guard selectedIndex < windows.count else { return }
-        selectedWindow = windows[selectedIndex]
-        if let w = selectedWindow {
+        guard selectedIndex < apps.count else { return }
+        selectedApp = apps[selectedIndex]
+        if selectedApp != nil {
             overlayWindow[selectedIndex].orderFront(nil)
         }
         captureSelectedWindowPreview()
@@ -389,7 +380,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             case 36, 76:
                 self.commitSelectionAndDismiss()
                 return nil
-                
             default:
                 return event
             }
@@ -402,117 +392,101 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             navigationMonitor = nil
         }
     }
-    
-    func activateWindow() {
-        guard selectedIndex < windows.count else { return }
-        
-        let scWindow = windows[selectedIndex]
-        
-        guard
-            let scApp = scWindow.owningApplication,
-            let app = NSRunningApplication(processIdentifier: scApp.processID)
-        else { return }
-        
-        // Bring app + all windows forward
-        app.activate(options: [
-            .activateAllWindows,
-            .activateIgnoringOtherApps
-        ])
+
+    func findMatchingAXWindow(for scWindow: SCWindow) -> AXUIElement? {
+        let pid = scWindow.owningApplication!.processID
+        let axApp = AXUIElementCreateApplication(pid)
+
+        var value: CFTypeRef?
+
+        let result = AXUIElementCopyAttributeValue(
+            axApp,
+            kAXWindowsAttribute as CFString,
+            &value
+        )
+
+        guard result == .success,
+            let axWindows = value as? [AXUIElement]
+        else {
+            return nil
+        }
+
+        for axWindow in axWindows {
+            var windowID: CGWindowID = 0
+
+            let err = _AXUIElementGetWindow(axWindow, &windowID)
+
+            if err == .success {
+                if windowID == scWindow.windowID {
+                    return axWindow
+                }
+            }
+        }
+
+        return nil
     }
     
+    func activateApp() {
+        guard selectedIndex < apps.count else { return }
+        let entry = apps[selectedIndex]
+
+        guard let nsApp = NSRunningApplication(processIdentifier: entry.app.processID) else { return }
+
+        nsApp.activate(options: [.activateIgnoringOtherApps])
+
+        if let axWindow = findMatchingAXWindow(for: entry.representativeWindow) {
+            AXUIElementPerformAction(axWindow, kAXRaiseAction as CFString)
+            AXUIElementSetAttributeValue(axWindow, kAXMainAttribute as CFString, kCFBooleanTrue)
+            AXUIElementSetAttributeValue(axWindow, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+        }
+    }
+
     func commitSelectionAndDismiss() {
-        
-        activateWindow()
+        activateApp()
         
         overlayWindow.forEach { $0.orderOut(nil) }
         previewWindow?.orderOut(nil)
-        
         stopNavigation()
-        
         NSApp.setActivationPolicy(.accessory)
     }
     
+    
     func snapshot(of window: SCWindow, completion: @escaping (NSImage?) -> Void) {
-        if windowStreams[window] != nil {
-            completion(nil)
-            return
-        }
-        
-        guard window.frame.width > 0 && window.frame.height > 0 else {
-            completion(nil)
-            return
-        }
-        
+        let w = window.frame.width, h = window.frame.height
+        guard w > 0, h > 0 else { completion(nil); return }
+
+        let scale  = NSScreen.main?.backingScaleFactor ?? 2.0
+        let pixelW = min(Int(w * scale), 3840)
+        let pixelH = min(Int(h * scale), 2160)
+
         let config = SCStreamConfiguration()
-        config.width = Int(window.frame.width)
-        config.height = Int(window.frame.height)
+        config.width       = pixelW
+        config.height      = pixelH
         config.scalesToFit = true
-        
-        guard let filter = try? SCContentFilter(desktopIndependentWindow: window),
-              let stream = try? SCStream(filter: filter, configuration: config, delegate: nil)
-        else {
-            completion(nil)
-            return
+        config.showsCursor = false
+
+        guard let filter = try? SCContentFilter(desktopIndependentWindow: window) else {
+            completion(nil); return
         }
-        
-        windowStreams[window] = stream
-        
-        final class Output: NSObject, SCStreamOutput {
-            let handler: (NSImage?) -> Void
-            weak var delegate: AppDelegate?
-            let window: SCWindow
-            
-            init(handler: @escaping (NSImage?) -> Void, delegate: AppDelegate?, window: SCWindow) {
-                self.handler = handler
-                self.delegate = delegate
-                self.window = window
+
+        Task {
+            do {
+                let cgImage = try await SCScreenshotManager.captureImage(
+                    contentFilter: filter,
+                    configuration: config
+                )
+                let image = NSImage(cgImage: cgImage, size: window.frame.size)
+                await MainActor.run { completion(image) }
+            } catch {
+                print("[snapshot] failed for \(window.title ?? "?"): \(error)")
+                await MainActor.run { completion(nil) }
             }
-            
-            func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-                guard let pb = sampleBuffer.imageBuffer,
-                      let delegate else {
-                    handler(nil)
-                    cleanup(stream)
-                    return
-                }
-                
-                let ciImage = CIImage(cvPixelBuffer: pb)
-                guard let cg = delegate.ciContext.createCGImage(ciImage, from: ciImage.extent) else {
-                    handler(nil)
-                    cleanup(stream)
-                    return
-                }
-                
-                let img = NSImage(cgImage: cg, size: window.frame.size)
-                handler(img)
-                cleanup(stream)
-            }
-            
-            func cleanup(_ stream: SCStream) {
-                stream.stopCapture()
-                Task { @MainActor in
-                    self.delegate?.windowStreams.removeValue(forKey: self.window)
-                    self.delegate?.streamOutputs.removeValue(forKey: self.window)
-                }
-            }
-        }
-        
-        let output = Output(handler: completion, delegate: self, window: window)
-        streamOutputs[window] = output
-        
-        do {
-            try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: .main)
-            try stream.startCapture()
-        } catch {
-            windowStreams.removeValue(forKey: window)
-            streamOutputs.removeValue(forKey: window)
-            completion(nil)
         }
     }
-    
+
     func captureSelectedWindowPreview() {
-        guard let win = selectedWindow else { return }
-        snapshot(of: win) { [weak self] image in
+        guard let entry = selectedApp else { return }
+        snapshot(of: entry.representativeWindow) { [weak self] image in
             Task { @MainActor in
                 guard let self else { return }
                 if let previewWindow = self.previewWindow,
@@ -526,21 +500,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    func addPreview(window: SCWindow, image: NSImage?) {
-        guard let image else { return }
-        windowPreviews[window] = image
-    }
-    
     func createPreviewWindow() {
         previewWindow?.close()
         previewWindow = nil
         
         guard let screen = NSScreen.main else { return }
         let screenFrame = screen.visibleFrame
-        
         let previewSize = NSSize(width: 400, height: 300)
         
-        let previewWindow = NonKeyWindow(
+        let win = NonKeyWindow(
             index: -1,
             contentRect: NSRect(
                 origin: CGPoint(
@@ -553,44 +521,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
-        
-        previewWindow.level = .floating
-        previewWindow.isOpaque = false
-        previewWindow.backgroundColor = .clear
-        previewWindow.hasShadow = true
-        previewWindow.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
-        previewWindow.isReleasedWhenClosed = false
-        
-        previewWindow.contentView = NSHostingView(
-            rootView: PreviewView(image: nil)
-        )
-        
-        self.previewWindow = previewWindow
+        win.level = .floating
+        win.isOpaque = false
+        win.backgroundColor = .clear
+        win.hasShadow = true
+        win.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
+        win.isReleasedWhenClosed = false
+        win.contentView = NSHostingView(rootView: PreviewView(image: nil))
+        self.previewWindow = win
     }
     
-    struct WindowRow: View {
-        var window: SCWindow
+    struct AppRow: View {
+        var entry: AppEntry
         var isSelected: Bool
         
-        private var appName: String {
-            window.owningApplication?.applicationName ?? "Unknown App"
-        }
-        private var windowTitle: String {
-            window.title ?? ""
-        }
+        private var appName: String { entry.app.applicationName }
         
         private var appIcon: NSImage? {
-            guard
-                let bundleID = window.owningApplication?.bundleIdentifier,
-                let app = NSRunningApplication
+            let bundleID = entry.app.bundleIdentifier
+            guard !bundleID.isEmpty,
+                bundleID != Bundle.main.bundleIdentifier,
+                let nsApp = NSRunningApplication
                     .runningApplications(withBundleIdentifier: bundleID)
-                    .first(where: { $0.icon != nil }),
-                app.activationPolicy == .regular,
-                app.bundleIdentifier != Bundle.main.bundleIdentifier
-            else {
-                return nil
-            }
-            return app.icon
+                    .first(where: { $0.icon != nil && $0.activationPolicy == .regular })
+            else { return nil }
+            return nsApp.icon
         }
         
         var body: some View {
@@ -605,39 +560,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         Image(nsImage: icon)
                             .resizable()
                             .scaledToFit()
-                            .frame(width: 30, height: 30)
-                            .cornerRadius(7)
+                            .frame(width: 34, height: 34)
+                            .cornerRadius(8)
                     } else {
-                        RoundedRectangle(cornerRadius: 7)
+                        RoundedRectangle(cornerRadius: 8)
                             .fill(.quaternary)
-                            .frame(width: 30, height: 30)
+                            .frame(width: 34, height: 34)
                             .overlay(
                                 Image(systemName: "app.dashed")
-                                    .font(.system(size: 12, weight: .regular))
+                                    .font(.system(size: 13, weight: .regular))
                                     .foregroundStyle(.tertiary)
                             )
                     }
                 }
                 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(appName)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(isSelected ? .primary : .secondary)
-                        .lineLimit(1)
-                    
-                    if !windowTitle.isEmpty {
-                        Text(windowTitle)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                    }
-                }
+                Text(appName)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+                    .lineLimit(1)
                 
                 Spacer()
             }
             .frame(width: 300, alignment: .leading)
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.vertical, 14)
             .background(
                 RoundedRectangle(cornerRadius: 10)
                     .fill(isSelected ? .regularMaterial : .thinMaterial)
@@ -645,7 +591,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .opacity(isSelected ? 1 : 0.7)
             .animation(.easeOut(duration: 0.15), value: isSelected)
         }
-        
     }
 
     struct PreviewView: View {
@@ -655,12 +600,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ZStack {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(.regularMaterial)
-                    .shadow(
-                        color: Color.black.opacity(0.18),
-                        radius: 16,
-                        x: 0,
-                        y: 10
-                    )
+                    .shadow(color: Color.black.opacity(0.18), radius: 16, x: 0, y: 10)
                 
                 VStack(spacing: 8) {
                     HStack {
@@ -669,9 +609,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                             .foregroundStyle(.tertiary)
                             .textCase(.uppercase)
                             .kerning(0.5)
-                        
                         Spacer()
-                        
                         Text("↩ switch")
                             .font(.system(size: 11))
                             .foregroundStyle(.quaternary)
